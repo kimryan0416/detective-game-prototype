@@ -1,0 +1,5 @@
+node_modules/
+easystarjs/
+src/server/
+**/.*
+!.gitignore

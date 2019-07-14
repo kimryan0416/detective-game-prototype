@@ -1,0 +1,18 @@
+body {
+	padding:0;
+	margin:0;
+	position:relative;
+	height:100%;
+	width:100%;
+	display:flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+}
+#grid {
+	width:800px;
+	height:600px;
+	border:1px solid black;
+	margin-top:50px;
+
+}

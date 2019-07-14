@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Test Run</title>
+		<link rel="stylesheet" href="/stylesheets/all.css" />
+	</head>
+	<body>
+		<canvas id='grid' width="800" height="600"></canvas>
+		<script>
+			var canvas = document.getElementById('grid');
+			var ctx = canvas.getContext('2d');
+			var entities = [];
+			var grid = [];
+			for (let i = 0; i < 9; i++) {
+				grid[i] = new Array(9);
+			}
+			const fps = 1;
+			var keys = {};
+			window.onkeyup = function(e) { keys[e.keyCode] = false; }
+			window.onkeydown = function(e) { keys[e.keyCode] = true; }
+
+			function generateId() {
+				return Math.random().toString(36).slice(2)
+			}
+
+			function determineDirection(position,target) {
+				// Targets must always be in one of the four cardinal directions of the original
+				// If this is not true, then we have a problem
+
+				// First check if positions are the same
+				if (position == target) {
+					return true;	// target has been reached
+				} else if (position.x != target.x && position.y != target.y) {
+					return false;	// target is not in one of the four cardinal directions of the original
+				} else if (position.x == target.x) {
+					// target is on same column as original
+					// the y coordinate is calculated from the TOP LEFT corner of the canvas
+					// 	because of this, if the original's y position is less than the target's, it's technically ABOVE the target in terms of the placement on the map. As such, the original must head in the southern direction.
+					if (position.y < (target.y)) {
+						return 'SOUTH';		// target is below original on y-axis
+					} else {
+						return 'NORTH'		// target is above original on y-axis
+					}
+				} else if (position.y == target.y) {
+					// target is on same row as original
+					// Unlike the y-axis, the x-axis is normal.
+					if (position.x < target.x) {
+						return 'EAST';	// the original must turn towards the east since the target is to the right
+					}
+					else {
+						return 'WEST';	// the original must turn towards the west since the target is to the left
+					}
+				} else {
+					return false;	// failsafe
+				}
+			}
+
+			class Entity {
+				// : constructor for entity
+				constructor (x = 0, y = 0, width = 10, height = 10, velocity = 5, color = '#00A', direction = 'SOUTH', trajectory = []) {
+					this.id = generateId();		// unique entity ID
+					this.type = 'OBJECT';		// entity type ['NPC', 'PLAYER', 'OBJECT']
+					this.position = {			// x and y positions
+						x: x,
+						y: y							
+					}
+					this.width = width;				// width (in units of 10)
+					this.height = height;			// height (in units of 10)
+					this.velocity = velocity;		// How fast the entity moves
+					this.color = color;				// color of entity
+					this.direction = direction;		// direction of entity ('NORTH','EAST','WEST','SOUTH')
+					this.trajectory = trajectory;	// trajectory - must be an array of pairs (x,y)
+
+					this.active = true;				// If inactive, cannot be updated and cannot be collided with
+					this.inMotion = false;			// if in motion, the motion must end
+				}
+				// : Checks if entity is in bounds of canvas
+				inBounds() {
+					return this.position.x >= 0 && this.position.x <= canvas.width &&	this.position.y >= 0 && this.position.y <= canvas.height;
+				}
+				// : Update function - runs at every interval
+				update() {
+					this.active = this.active && this.inBounds();
+					if (this.active && this.trajectory.length > 0) {
+						// : The entity can only move in the 4 cardinal directions.
+						let curTarget = this.trajectory[0];
+						let dir = determineDirection(this.position,curTarget);
+						switch(dir) {
+							case 'NORTH': {
+								console.log('Moving north');
+								break;
+							}
+							case 'SOUTH': {
+								console.log('Moving south');
+								break;
+							}
+							case 'EAST': {
+								console.log('Moving east');
+								break;
+							}
+							case 'WEST': {
+								console.log('Moving west');
+								break;
+							}
+							case true: {
+								console.log('Destination reached');
+								break;
+							}
+							default: {
+								console.log('INVALID');
+							}
+						}
+					}
+				}
+				draw() {
+					if (this.active) {
+						ctx.fillStyle = this.color;
+				    	ctx.fillRect( 
+							//this.x - (this.w/2), 
+							//this.y - (this.h/2), 
+							this.position.x,
+							this.position.y,
+							this.width, 
+							this.height
+						);
+					}
+				}
+				// : Set the direction the player is facing
+				setDirection(direction) {
+					this.direction = direction;
+				}
+				// : Set the movement of the entity, if they need to move - must be an array of pair values (x,y)
+				setTrajectory(trajectory) {
+					this.trajectory = trajectory;
+				}
+				// : Add to the trajectory of the entity
+				addTrajectory(addition) {
+					this.trajectory.push(addition);
+				}
+				// : Clear trajectory
+				clearTrajectory() {
+					this.trajectory = new Array();
+				}
+				// : kill the entity
+				explode() {
+					this.active = false;
+				}
+			}
+
+			class Player extends Entity {
+				constructor(x,y) {
+					super(x,y,10,10,5,'#000');
+					this.type = 'PLAYER';
+				}
+				update() {
+					this.active = this.active && this.inBounds();
+					let targetX = this.position.x, targetY = this.position.y;
+					if (keys['65'] == true) targetX -= 10;
+					if (keys['68'] == true) targetX += 10;
+					if (keys['83'] == true) targetY += 10;
+					if (keys['87'] == true) targetY -= 10;
+					let dy = targetY - this.position.y;
+					let dx = targetX - this.position.x;
+					let theta = Math.atan(-dy/dx);
+					theta *= 180 / Math.PI;
+					if (isNaN(theta)) {
+						return {x:0, y:0};
+					}
+					let distance = Math.sqrt( dy*dy + dx*dx );
+					let trueTravelDistance = 
+						(distance <= this.travelDistance) ? distance : this.travelDistance;
+
+		let travelX = Math.cos(theta) * trueTravelDistance;
+		let travelY = Math.sin(theta) * trueTravelDistance;
+		return {x:travelX, y:travelY};
+				}
+			}
+
+			function gameUpdate() {
+				entities.forEach(e=>{
+					e.update();
+				});
+				console.log(keys);
+			}
+			function gameDraw() {
+				ctx.clearRect(0,0,canvas.width, canvas.height);
+				entities.forEach(e=>{
+					e.draw();
+				});
+			}
+
+			/*
+			var drawGrid = function() {
+				ctx.fillStyle = 'rgb(200, 0, 0)';
+				ctx.fillRect(10, 10, 50, 50);
+
+				ctx.fillStyle = 'rgba(0, 0, 200, 0.5)';
+				ctx.fillRect(30, 30, 50, 50);
+			}
+			*/
+			var mc = new Player(50,50);
+			entities.push(mc);
+
+			var gameInterval = setInterval(()=>{
+				gameUpdate();
+				gameDraw();
+			},1000/fps);
+
+			setTimeout(()=>{
+				mc.setTrajectory([{x:10,y:300}]);
+				setTimeout(()=>{
+					mc.setTrajectory([{x:300,y:20}]);
+					setTimeout(()=>{
+						mc.clearTrajectory();
+					},5000);
+				},5000)
+			},10000)
+
+			/*
+
+			function canvasUpdate() {
+				thisPlayer.update();
+				entities.forEach((e,index,object)=>{
+					if (!e.active) {
+						object.splice(index,1);
+					}
+					else {
+						e.update();
+					}
+				});
+			}
+			function canvasDraw() {
+				document.getElementById('fps').innerHTML = fps;
+				document.getElementById('entitiesCount').innerHTML = entities.length;
+				ctx.clearRect(0,0,canvas.width, canvas.height);
+				thisPlayer.draw();
+				entities.forEach(e=>{
+					e.draw();
+				});
+			}
+
+			const Entity = (I) => {
+				var data = I || {};
+				data.velocity = (data.velocity) ? data.velocity : 1;
+				data.id = (data.id) ? data.id : generateId();
+				data.xVelocity = 0;
+				data.yVelocity = 0;
+				data.dimensions = (data.dimensions) ? data.dimensions : {w:10, h:10};
+				data.active = (data.active != null) ? data.active : true;
+				// x and y are determined by I by default;
+				data.update = function() {
+					deletedEntities.forEach(e=>{
+						if (e.id == this.target.id) this.target = this;
+					});
+
+			let toTravel = I.getTravelDimensions();
+			I.position.x += toTravel.x;
+			I.position.y += toTravel.y;
+
+					I.position.x = this.xVelocity;
+					I.position.y = this.yVelocity;
+
+					var thisMidpoint = {
+						x:this.position.x + (this.dimensions.w / 2), 
+						y: this.position.y + (this.dimensions.h / 2)
+					};
+					var targetMidpoint = {
+						x:this.target.position.x + ( this.target.dimensions.w / 2 ),
+						y:this.target.position.y + ( this.target.dimensions.h / 2 )
+					};
+					var angleToTarget = Math.atan2(
+						this.position.y-this.target.position.y, this.position.x - this.target.position.x);
+					this.xVelocity -= Math.cos(angleToTarget) * this.travelDistance;
+					this.yVelocity -= Math.sin(angleToTarget) * this.travelDistance;
+
+					this.active = this.active && this.inBounds();
+				}
+				data.inBounds = function() {
+					return I.position.x >= 0 && I.position.x <= canvas.width &&	
+						I.position.y >= 0 && I.position.y <= canvas.height;
+				};
+				data.draw = () => {
+					ctx.fillStyle = this.color;
+			    	ctx.fillRect( 
+						this.position.x - (this.dimensions.w/2), 
+						this.position.y - (this.dimensions.h/2), 
+						this.dimensions.w, 
+						this.dimensions.h
+					);
+			    }
+
+				return data;
+			}
+			
+
+			var drawGrid = function() {
+				ctx.fillStyle = 'rgb(200, 0, 0)';
+				ctx.fillRect(10, 10, 50, 50);
+
+				ctx.fillStyle = 'rgba(0, 0, 200, 0.5)';
+				ctx.fillRect(30, 30, 50, 50);
+			}
+			drawGrid();
+
+
+			var player = Entity({x:50, y:50});
+
+			var gameInterval = setInterval(()=>{
+				canvasUpdate();
+				canvasDraw();
+			},(1000/fps));
+			*/
+		</script>
+	</body>
+</html>
